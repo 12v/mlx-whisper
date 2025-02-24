@@ -1,41 +1,20 @@
 import torch
-from transformers import (
-    WhisperFeatureExtractor,
-    WhisperForConditionalGeneration,
-    WhisperTokenizer,
-)
 
-from audio import load_audio
+from data.audio import load_audio
+from data.whisper import extract_audio_features, model, tokenizer
 from params import sample_rate
 from utils import device
 
-feature_extractor = WhisperFeatureExtractor.from_pretrained(
-    "openai/whisper-tiny", language="english"
-)
-tokenizer = WhisperTokenizer.from_pretrained("openai/whisper-tiny", language="english")
-model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-tiny").to(
-    device
-)
-
 model.eval()
-model.generation_config.language = "english"
-model.generation_config.task = "transcribe"
-model.generation_config.forced_decoder_ids = None
-model.config.forced_decoder_ids = None
 
 
 def transcribe(audio_file):
     audio = load_audio(audio_file, sample_rate)
 
-    features = feature_extractor(
-        audio,
-        return_tensors="pt",
-        sampling_rate=sample_rate,
-        return_attention_mask=True,
-    ).to(device)
+    features = extract_audio_features(audio, sample_rate)
 
     with torch.no_grad():
-        output = model.generate(**features)
+        output = model.generate(**features.to(device))
 
     return tokenizer.decode(output[0])
 
