@@ -14,7 +14,7 @@ from utils import device
 batch_size = 32 if device.type == "cuda" else 4
 num_workers = 2 if device.type == "cuda" else 0
 persistent_workers = True if num_workers > 0 else False
-initial_lr = 0.00001
+initial_lr = 0.000001
 
 num_epochs = 10
 
