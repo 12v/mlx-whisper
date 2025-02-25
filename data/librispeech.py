@@ -10,7 +10,7 @@ train_dataset = datasets.load_dataset(
     "clean",
     split="train.100",
     trust_remote_code=True,
-    storage_options={"client_kwargs": {"timeout": aiohttp.ClientTimeout(total=3600)}},
+    storage_options={"client_kwargs": {"timeout": aiohttp.ClientTimeout(total=18000)}},
     # streaming=True,
 )
 test_dataset = datasets.load_dataset(
@@ -18,7 +18,7 @@ test_dataset = datasets.load_dataset(
     "clean",
     split="test",
     trust_remote_code=True,
-    storage_options={"client_kwargs": {"timeout": aiohttp.ClientTimeout(total=3600)}},
+    storage_options={"client_kwargs": {"timeout": aiohttp.ClientTimeout(total=18000)}},
     # streaming=True,
 )
 
@@ -70,3 +70,17 @@ class IterableLibriSpeechDataset(torch.utils.data.IterableDataset):
     def __iter__(self):
         for row in self.dataset:
             yield process_row(row)
+
+
+def get_dataloaders(batch_size):
+    train = LibriSpeechDataset(train_dataset)
+    test = LibriSpeechDataset(test_dataset)
+
+    return (
+        torch.utils.data.DataLoader(
+            train, batch_size=batch_size, collate_fn=collate_fn, shuffle=True
+        ),
+        torch.utils.data.DataLoader(
+            test, batch_size=batch_size, collate_fn=collate_fn, shuffle=False
+        ),
+    )

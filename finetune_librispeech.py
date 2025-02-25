@@ -1,12 +1,7 @@
 import torch
 from tqdm import tqdm
 
-from data.librispeech import (
-    LibriSpeechDataset,
-    collate_fn,
-    test_dataset,
-    train_dataset,
-)
+from data.librispeech import get_dataloaders, train_dataset
 from data.whisper import model
 from inference import transcribe
 from utils import device
@@ -15,33 +10,18 @@ batch_size = 32 if device.type == "cuda" else 4
 num_workers = 2 if device.type == "cuda" else 0
 persistent_workers = True if num_workers > 0 else False
 initial_lr = 0.000001
-
 num_epochs = 10
 
 model.train()
 
-train_dataset = LibriSpeechDataset(train_dataset)
-test_dataset = LibriSpeechDataset(test_dataset)
+row = train_dataset[0]
+audio = row["audio"]["array"]
+text = row["text"]
 
-train_loader = torch.utils.data.DataLoader(
-    train_dataset,
-    batch_size=batch_size,
-    collate_fn=collate_fn,
-    shuffle=True,
-    drop_last=True,
-)
-test_loader = torch.utils.data.DataLoader(
-    test_dataset,
-    batch_size=batch_size,
-    collate_fn=collate_fn,
-    shuffle=False,
-    drop_last=True,
-)
+train_loader, test_loader = get_dataloaders(batch_size)
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=initial_lr)
 criterion = torch.nn.CrossEntropyLoss(reduction="none")
-
-audio, text = train_dataset[1]
 
 for epoch in range(num_epochs):
     loader = tqdm(train_loader, desc=f"Epoch {epoch}", total=len(train_loader))
