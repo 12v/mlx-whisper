@@ -55,9 +55,8 @@ def process_row(row):
 
 
 class LibriSpeechDataset(torch.utils.data.Dataset):
-    def __init__(self, dataset, sample_rate):
+    def __init__(self, dataset):
         self.dataset = dataset
-        self.sample_rate = sample_rate
 
     def __len__(self):
         return len(self.dataset)
@@ -68,9 +67,8 @@ class LibriSpeechDataset(torch.utils.data.Dataset):
 
 
 class IterableLibriSpeechDataset(torch.utils.data.IterableDataset):
-    def __init__(self, dataset, sample_rate):
+    def __init__(self, dataset):
         self.dataset = dataset
-        self.sample_rate = sample_rate
 
     def __iter__(self):
         for row in self.dataset:

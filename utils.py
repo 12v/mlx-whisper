@@ -1,7 +1,6 @@
 from contextlib import contextmanager
 
 import torch
-from torch.cuda.amp import autocast
 
 device = torch.device(
     "cuda"
@@ -28,8 +27,8 @@ class DummyWandb:
 
 @contextmanager
 def conditional_autocast():
-    if device.type == "cuda":
-        with autocast(device.type):
+    if torch.amp.autocast_mode.is_autocast_available(device.type):
+        with torch.autocast(device.type):
             yield
     else:
         yield

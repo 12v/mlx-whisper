@@ -1,5 +1,4 @@
 import torch
-from torch.cuda.amp import GradScaler
 from tqdm import tqdm
 
 from data.librispeech import (
@@ -9,37 +8,44 @@ from data.librispeech import (
     train_dataset,
 )
 from data.whisper import model, tokenizer
-from params import sample_rate
-from utils import conditional_autocast, device
+from inference import transcribe
+from utils import device
 
-model.train()
-
-optimizer = torch.optim.AdamW(model.parameters(), lr=0.000001)
-criterion = torch.nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
+batch_size = 32 if device.type == "cuda" else 4
+num_workers = 2 if device.type == "cuda" else 0
+persistent_workers = True if num_workers > 0 else False
+initial_lr = 0.00001
 
 num_epochs = 10
 
+model.train()
 
-batch_size = 128 if device.type == "cuda" else 4
-num_workers = 0 if device.type == "cuda" else 0
-persistent_workers = True if num_workers > 0 else False
-
-train_dataset = LibriSpeechDataset(train_dataset, sample_rate)
-test_dataset = LibriSpeechDataset(test_dataset, sample_rate)
+train_dataset = LibriSpeechDataset(train_dataset)
+test_dataset = LibriSpeechDataset(test_dataset)
 
 train_loader = torch.utils.data.DataLoader(
-    train_dataset, batch_size=batch_size, collate_fn=collate_fn, drop_last=True
+    train_dataset,
+    batch_size=batch_size,
+    collate_fn=collate_fn,
+    shuffle=True,
+    drop_last=True,
 )
 test_loader = torch.utils.data.DataLoader(
-    test_dataset, batch_size=batch_size, collate_fn=collate_fn, drop_last=True
+    test_dataset,
+    batch_size=batch_size,
+    collate_fn=collate_fn,
+    shuffle=False,
+    drop_last=True,
 )
 
-scaler = GradScaler(device.type)
+optimizer = torch.optim.AdamW(model.parameters(), lr=initial_lr)
+criterion = torch.nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
+
+audio, text = train_dataset[1]
 
 for epoch in range(num_epochs):
     loader = tqdm(train_loader, desc=f"Epoch {epoch}", total=len(train_loader))
     losses = []
-    model.train()
     optimizer.zero_grad()
     for (
         audio_features,
@@ -49,17 +55,20 @@ for epoch in range(num_epochs):
         output_labels,
         output_labels_mask,
     ) in loader:
-        with conditional_autocast():
-            output = model(
-                input_features=audio_features.to(device),
-                attention_mask=audio_attention_mask.to(device),
-                decoder_input_ids=input_labels.to(device),
-            )
-            logits = output.logits
-            loss = criterion(logits.permute(0, 2, 1), output_labels.to(device))
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
+        model.train()
+        output = model(
+            input_features=audio_features.to(device),
+            attention_mask=audio_attention_mask.to(device),
+            decoder_input_ids=input_labels.to(device),
+        )
+        logits = output.logits
+        loss = criterion(logits.permute(0, 2, 1), output_labels.to(device))
+        loss.backward()
+        optimizer.step()
         losses.append(loss.item())
         loader.set_postfix(loss=sum(losses) / len(losses))
+
+        print(transcribe(audio))
+        print(text)
+
     print(f"Epoch {epoch} loss: {sum(losses) / len(losses)}")
