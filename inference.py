@@ -9,10 +9,12 @@ from utils import device
 def transcribe(audio):
     model.eval()
 
-    features = extract_audio_features(audio, sample_rate)
+    input_features, attention_mask = extract_audio_features(audio, sample_rate)
 
     with torch.no_grad():
-        output = model.generate(**features.to(device))
+        output = model.generate(
+            input_features.to(device), attention_mask=attention_mask.to(device)
+        )
 
     return tokenizer.decode(output[0])
 

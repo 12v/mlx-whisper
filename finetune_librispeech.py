@@ -7,7 +7,7 @@ from data.librispeech import (
     test_dataset,
     train_dataset,
 )
-from data.whisper import model, tokenizer
+from data.whisper import model
 from inference import transcribe
 from utils import device
 
@@ -39,7 +39,7 @@ test_loader = torch.utils.data.DataLoader(
 )
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=initial_lr)
-criterion = torch.nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
+criterion = torch.nn.CrossEntropyLoss(reduction="none")
 
 audio, text = train_dataset[1]
 
@@ -63,6 +63,8 @@ for epoch in range(num_epochs):
         )
         logits = output.logits
         loss = criterion(logits.permute(0, 2, 1), output_labels.to(device))
+        loss = loss * output_labels_mask.to(device)
+        loss = loss.sum() / output_labels_mask.sum()
         loss.backward()
         optimizer.step()
         losses.append(loss.item())

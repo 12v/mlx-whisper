@@ -2,7 +2,7 @@ import aiohttp
 import datasets
 import torch
 
-from data.whisper import extract_audio_features, tokenizer
+from data.whisper import extract_audio_features, get_text_tensors
 from params import sample_rate
 
 train_dataset = datasets.load_dataset(
@@ -25,17 +25,14 @@ test_dataset = datasets.load_dataset(
 
 def collate_fn(batch):
     audios = [item[0] for item in batch]
-    features = extract_audio_features(audios, sample_rate)
-    tokenizer_output = tokenizer([item[1] for item in batch], padding=True)
+    audio_input_features, audio_attention_mask = extract_audio_features(
+        audios, sample_rate
+    )
 
-    audio_input_features = features.input_features
-    audio_attention_mask = features.attention_mask
-
-    input_label_tensor = torch.tensor(tokenizer_output.input_ids)[:, :-1]
-    input_label_mask = torch.tensor(tokenizer_output.attention_mask)[:, :-1]
-
-    output_label_tensor = torch.tensor(tokenizer_output.input_ids)[:, 1:]
-    output_label_mask = torch.tensor(tokenizer_output.attention_mask)[:, 1:]
+    labels = [item[1] for item in batch]
+    input_label_tensor, input_label_mask, output_label_tensor, output_label_mask = (
+        get_text_tensors(labels)
+    )
 
     return (
         audio_input_features,

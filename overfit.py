@@ -21,12 +21,16 @@ criterion = torch.nn.CrossEntropyLoss()
 num_epochs = 10
 
 for epoch in range(num_epochs):
-    features = extract_audio_features(audio, sample_rate).to(device)
+    input_features, attention_mask = extract_audio_features(audio, sample_rate)
 
     input_label_tensor = torch.tensor(labels[:-1]).to(device).unsqueeze(0)
     output_label_tensor = torch.tensor(labels[1:]).to(device).unsqueeze(0)
 
-    output = model(**features, decoder_input_ids=input_label_tensor)
+    output = model(
+        input_features.to(device),
+        attention_mask=attention_mask.to(device),
+        decoder_input_ids=input_label_tensor,
+    )
 
     logits = output.logits
 
@@ -38,6 +42,8 @@ for epoch in range(num_epochs):
 
 model.eval()
 with torch.no_grad():
-    features = extract_audio_features(audio, sample_rate).to(device)
-    output = model.generate(**features)
+    input_features, attention_mask = extract_audio_features(audio, sample_rate)
+    output = model.generate(
+        input_features.to(device), attention_mask=attention_mask.to(device)
+    )
     print(tokenizer.decode(output[0]))
