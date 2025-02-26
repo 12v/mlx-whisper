@@ -6,9 +6,6 @@ import xml.etree.ElementTree as ET
 import numpy as np
 from torch.utils.data import Dataset
 
-from data.whisper import extract_audio_features, get_text_tensors
-from params import sample_rate
-
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
 speaker_change_token = "<|startoflm|>"
@@ -234,24 +231,3 @@ class AMIDataset(Dataset):
 
         audio = np.frombuffer(audio, dtype=np.int16)
         return audio, text
-
-
-def collate_fn(batch):
-    audios = [item[0] for item in batch]
-    audio_input_features, audio_attention_mask = extract_audio_features(
-        audios, sample_rate
-    )
-
-    labels = [item[1] for item in batch]
-    input_label_tensor, input_label_mask, output_label_tensor, output_label_mask = (
-        get_text_tensors(labels)
-    )
-
-    return (
-        audio_input_features,
-        audio_attention_mask,
-        input_label_tensor,
-        input_label_mask,
-        output_label_tensor,
-        output_label_mask,
-    )

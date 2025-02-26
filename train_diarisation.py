@@ -3,8 +3,8 @@ import os
 import torch
 from tqdm import tqdm
 
-from data.ami import AMIDataset, collate_fn, dataset
-from data.whisper import model, pretrained_model
+from data.ami import AMIDataset, dataset
+from data.whisper import collate_fn, model, pretrained_model
 from inference import transcribe
 from utils import DummyWandb, device
 
@@ -22,7 +22,10 @@ initial_lr = 0.0000001
 num_epochs = 10
 
 model.load_state_dict(
-    torch.load(os.path.join(script_dir, "weights/model_1_speaker_switch.pt"))
+    torch.load(
+        os.path.join(script_dir, "weights/model_1_speaker_switch.pt"),
+        map_location=device,
+    )
 )
 
 model.train()
@@ -84,7 +87,6 @@ for epoch in range(num_epochs):
             print(transcribe(audio))
             print(text)
 
-    # create models directory if it doesn't exist
     os.makedirs(os.path.join(script_dir, "weights"), exist_ok=True)
     torch.save(
         model.state_dict(),
