@@ -18,8 +18,12 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 batch_size = 16 if device.type == "cuda" else 4
 num_workers = 2 if device.type == "cuda" else 0
 persistent_workers = True if num_workers > 0 else False
-initial_lr = 0.000001
+initial_lr = 0.0000001
 num_epochs = 10
+
+model.load_state_dict(
+    torch.load(os.path.join(script_dir, "weights/model_1_speaker_switch.pt"))
+)
 
 model.train()
 
