@@ -159,8 +159,8 @@ def create_text_from_words_with_speaker_change(words):
         if word["is_truncated"]:
             continue
 
-        if latest_speaker != word["speaker"] and latest_speaker is not None:
-            text += speaker_change_token
+        # if latest_speaker != word["speaker"] and latest_speaker is not None:
+        #     text += speaker_change_token
 
         text += (" " if not word["is_punctuation"] else "") + word["text"]
 

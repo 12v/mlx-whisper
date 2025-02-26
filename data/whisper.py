@@ -7,7 +7,7 @@ from transformers import (
 
 from utils import device
 
-pretrained_model = "openai/whisper-tiny"
+pretrained_model = "openai/whisper-base"
 
 feature_extractor = WhisperFeatureExtractor.from_pretrained(
     pretrained_model, language="english"
