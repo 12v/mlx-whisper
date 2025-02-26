@@ -1,3 +1,5 @@
+import os
+
 import torch
 from tqdm import tqdm
 
@@ -10,6 +12,8 @@ if torch.cuda.is_available():
     import wandb
 else:
     wandb = DummyWandb()
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
 
 batch_size = 16 if device.type == "cuda" else 4
 num_workers = 2 if device.type == "cuda" else 0
@@ -42,6 +46,7 @@ wandb.init(
         "num_epochs": num_epochs,
     },
 )
+wandb.log({"epoch": 0, "loss": 0})
 
 for epoch in range(num_epochs):
     loader = tqdm(train_loader, desc=f"Epoch {epoch}", total=len(train_loader))
@@ -75,6 +80,12 @@ for epoch in range(num_epochs):
             print(transcribe(audio))
             print(text)
 
+    # create models directory if it doesn't exist
+    os.makedirs(os.path.join(script_dir, "weights"), exist_ok=True)
+    torch.save(
+        model.state_dict(),
+        os.path.join(script_dir, f"weights/model_{epoch}.pt"),
+    )
     print(f"Epoch {epoch} loss: {sum(losses) / len(losses)}")
     wandb.log({"epoch": epoch, "loss": sum(losses) / len(losses)})
-    wandb.finish()
+wandb.finish()
