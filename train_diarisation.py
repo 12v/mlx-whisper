@@ -34,7 +34,7 @@ criterion = torch.nn.CrossEntropyLoss(reduction="none")
 
 
 wandb.init(
-    project="flickr-captioning-clip-tokenizer",
+    project="whisper-diarisation",
     config={
         "pretrained_model": pretrained_model,
         "batch_size": batch_size,
