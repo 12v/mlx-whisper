@@ -22,6 +22,25 @@ def find_files(root, extension):
 
 
 def get_data_dict():
+    if not os.path.exists(os.path.join(script_dir, "..", "ami", "amicorpus")):
+        raise FileNotFoundError(
+            "AMI corpus not found at "
+            + os.path.abspath(os.path.join(script_dir, "..", "ami", "amicorpus"))
+            + ". Please download the corpus using data/download_ami_corpus.sh."
+        )
+
+    if not os.path.exists(
+        os.path.join(script_dir, "..", "ami", "ami_public_manual_1.6.2", "words")
+    ):
+        raise FileNotFoundError(
+            "AMI words not found at "
+            + os.path.abspath(
+                os.path.join(
+                    script_dir, "..", "ami", "ami_public_manual_1.6.2", "words"
+                )
+            )
+            + ". Please download and extract these files from here: https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip"
+        )
     wav_files = find_files(os.path.join(script_dir, "..", "ami", "amicorpus"), ".wav")
     word_files = find_files(
         os.path.join(script_dir, "..", "ami", "ami_public_manual_1.6.2", "words"),
