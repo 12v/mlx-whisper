@@ -3,8 +3,10 @@ import os
 import wave
 import xml.etree.ElementTree as ET
 
-import numpy as np
 from torch.utils.data import Dataset
+
+from data.audio import load_audio
+from params import sample_rate
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -225,9 +227,5 @@ class AMIDataset(Dataset):
         text = item["text"]
 
         wav_file = item["wav_file"]
-        with wave.open(wav_file, "rb") as wav_file:
-            wav_file.setpos(int(start * wav_file.getframerate()))
-            audio = wav_file.readframes(int((end - start) * wav_file.getframerate()))
-
-        audio = np.frombuffer(audio, dtype=np.int16)
+        audio = load_audio(wav_file, sample_rate, start, end)
         return audio, text
