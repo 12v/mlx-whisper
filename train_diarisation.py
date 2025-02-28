@@ -10,7 +10,7 @@ from data.librispeech import LibriSpeechDataset
 from data.librispeech import train_dataset as librispeech_dataset
 from data.whisper import collate_fn, model, pretrained_model, tokenizer
 from inference import transcribe
-from utils import DummyWandb, device
+from utils import DummyWandb, conditional_autocast, device
 
 if torch.cuda.is_available():
     import wandb
@@ -19,15 +19,15 @@ else:
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
-batch_size = 16 if device.type == "cuda" else 4
+batch_size = 8 if device.type == "cuda" else 4
 num_workers = 2 if device.type == "cuda" else 0
 persistent_workers = True if num_workers > 0 else False
-initial_lr = 5e-8
+initial_lr = 1e-7
 num_epochs = 20
-lambda_speaker = 0.5
+lambda_speaker = 10
 # model.load_state_dict(
 #     torch.load(
-#         os.path.join(script_dir, "weights/model_6.pt"),
+#         os.path.join(script_dir, "weights/model_0_combined.pt"),
 #         map_location=device,
 #     )
 # )
@@ -51,7 +51,8 @@ def test():
     print("-" * 100)
     print("transcribed")
     print("-" * 100)
-    print(transcribe(audio))
+    with conditional_autocast():
+        print(transcribe(audio))
     print("-" * 100)
 
 
@@ -77,6 +78,8 @@ speaker_change_token_id = tokenizer.encode(
     speaker_change_token, add_special_tokens=False
 )[0]
 
+scaler = torch.amp.GradScaler()
+
 
 def combined_loss(logits, output_labels, output_labels_mask):
     speaker_change_mask = (output_labels == speaker_change_token_id).float()
@@ -87,9 +90,8 @@ def combined_loss(logits, output_labels, output_labels_mask):
     transcription_loss = transcription_loss.sum() / transcription_mask.sum()
 
     speaker_change_logits = logits[:, :, speaker_change_token_id]
-    speaker_change_predictions = torch.sigmoid(speaker_change_logits)
-    speaker_change_loss = F.binary_cross_entropy(
-        speaker_change_predictions, speaker_change_mask.to(device)
+    speaker_change_loss = F.binary_cross_entropy_with_logits(
+        speaker_change_logits, speaker_change_mask.to(device)
     )
 
     return (
@@ -104,7 +106,6 @@ for epoch in range(num_epochs):
     losses = []
     transcription_losses = []
     speaker_change_losses = []
-    optimizer.zero_grad()
 
     for i, (
         audio_features,
@@ -115,18 +116,20 @@ for epoch in range(num_epochs):
         output_labels_mask,
     ) in enumerate(loader):
         model.train()
+        optimizer.zero_grad()
 
-        output = model(
-            input_features=audio_features.to(device),
-            attention_mask=audio_attention_mask.to(device),
-            decoder_input_ids=input_labels.to(device),
-        )
+        with conditional_autocast():
+            output = model(
+                input_features=audio_features.to(device),
+                attention_mask=audio_attention_mask.to(device),
+                decoder_input_ids=input_labels.to(device),
+            )
 
-        loss, transcription_loss, speaker_change_loss = combined_loss(
-            output.logits, output_labels, output_labels_mask
-        )
+            loss, transcription_loss, speaker_change_loss = combined_loss(
+                output.logits, output_labels, output_labels_mask
+            )
 
-        loss.backward()
+        speaker_change_loss.backward()
         optimizer.step()
         losses.append(loss.item())
         transcription_losses.append(transcription_loss.item())

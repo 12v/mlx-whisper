@@ -8,7 +8,7 @@ from transformers import (
 from params import sample_rate
 from utils import device
 
-pretrained_model = "openai/whisper-base"
+pretrained_model = "openai/whisper-small"
 
 feature_extractor = WhisperFeatureExtractor.from_pretrained(
     pretrained_model, language="english"
@@ -33,7 +33,7 @@ def extract_audio_features(audios, sample_rate):
         padding="max_length",
     )
 
-    return output.input_features, output.attention_mask
+    return output.input_features.to(torch.float32), output.attention_mask
 
 
 def get_text_tensors(labels):
