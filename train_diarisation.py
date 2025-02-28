@@ -1,13 +1,14 @@
 import os
 
 import torch
+from torch.nn import functional as F
 from tqdm import tqdm
 
-from data.ami import AMIDataset
+from data.ami import AMIDataset, speaker_change_token
 from data.ami import dataset as ami_dataset
 from data.librispeech import LibriSpeechDataset
 from data.librispeech import train_dataset as librispeech_dataset
-from data.whisper import collate_fn, model, pretrained_model
+from data.whisper import collate_fn, model, pretrained_model, tokenizer
 from inference import transcribe
 from utils import DummyWandb, device
 
@@ -23,7 +24,7 @@ num_workers = 2 if device.type == "cuda" else 0
 persistent_workers = True if num_workers > 0 else False
 initial_lr = 5e-8
 num_epochs = 20
-
+lambda_speaker = 0.5
 # model.load_state_dict(
 #     torch.load(
 #         os.path.join(script_dir, "weights/model_6.pt"),
@@ -67,13 +68,42 @@ wandb.init(
         "batch_size": batch_size,
         "lr": initial_lr,
         "num_epochs": num_epochs,
+        "lambda_speaker": lambda_speaker,
     },
 )
 wandb.log({"epoch": 0, "loss": 0})
 
+speaker_change_token_id = tokenizer.encode(
+    speaker_change_token, add_special_tokens=False
+)[0]
+
+
+def combined_loss(logits, output_labels, output_labels_mask):
+    speaker_change_mask = (output_labels == speaker_change_token_id).float()
+    transcription_mask = output_labels_mask * (1 - speaker_change_mask)
+
+    transcription_loss = criterion(logits.permute(0, 2, 1), output_labels.to(device))
+    transcription_loss = transcription_loss * transcription_mask.to(device)
+    transcription_loss = transcription_loss.sum() / transcription_mask.sum()
+
+    speaker_change_logits = logits[:, :, speaker_change_token_id]
+    speaker_change_predictions = torch.sigmoid(speaker_change_logits)
+    speaker_change_loss = F.binary_cross_entropy(
+        speaker_change_predictions, speaker_change_mask.to(device)
+    )
+
+    return (
+        transcription_loss + lambda_speaker * speaker_change_loss,
+        transcription_loss,
+        speaker_change_loss,
+    )
+
+
 for epoch in range(num_epochs):
     loader = tqdm(train_loader, desc=f"Epoch {epoch}", total=len(train_loader))
     losses = []
+    transcription_losses = []
+    speaker_change_losses = []
     optimizer.zero_grad()
 
     for i, (
@@ -92,18 +122,26 @@ for epoch in range(num_epochs):
             decoder_input_ids=input_labels.to(device),
         )
 
-        logits = output.logits
-        loss = criterion(logits.permute(0, 2, 1), output_labels.to(device))
-        loss = loss * output_labels_mask.to(device)
-        loss = loss.sum() / output_labels_mask.sum()
+        loss, transcription_loss, speaker_change_loss = combined_loss(
+            output.logits, output_labels, output_labels_mask
+        )
+
         loss.backward()
         optimizer.step()
         losses.append(loss.item())
-        loader.set_postfix(loss=sum(losses) / len(losses))
+        transcription_losses.append(transcription_loss.item())
+        speaker_change_losses.append(speaker_change_loss.item())
+        loader.set_postfix(
+            loss=sum(losses) / len(losses),
+            t_loss=sum(transcription_losses) / len(transcription_losses),
+            s_loss=sum(speaker_change_losses) / len(speaker_change_losses),
+        )
         wandb.log(
             {
                 "epoch": epoch,
                 "loss": loss.item(),
+                "transcription_loss": transcription_loss.item(),
+                "speaker_change_loss": speaker_change_loss.item(),
             }
         )
 
