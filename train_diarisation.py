@@ -21,7 +21,7 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 batch_size = 16 if device.type == "cuda" else 4
 num_workers = 2 if device.type == "cuda" else 0
 persistent_workers = True if num_workers > 0 else False
-initial_lr = 1e-8
+initial_lr = 5e-8
 num_epochs = 20
 
 # model.load_state_dict(
@@ -115,6 +115,7 @@ for epoch in range(num_epochs):
         model.state_dict(),
         os.path.join(script_dir, f"weights/model_{epoch}.pt"),
     )
+    wandb.save(os.path.join(script_dir, f"weights/model_{epoch}.pt"))
     print(f"Epoch {epoch} loss: {sum(losses) / len(losses)}")
     wandb.log(
         {
